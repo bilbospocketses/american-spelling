@@ -74,3 +74,6 @@ bilbospocketses/streamflex src/external/nanosvg.h grey
 # A proper name: Prime Video's own feature "Dialogue Boost", as Amazon's help pages name it
 bilbospocketses/streamflex design/research/overlay/13-injection-engineering.md dialogue
 bilbospocketses/streamflex design/research/overlay/21-services-majors-a.md dialogue
+
+# A proper name: the EndeavourOS Linux distribution
+bilbospocketses/streamflex design/research/overlay/24-linux-full-firefox.md endeavouros

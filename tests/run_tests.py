@@ -578,19 +578,20 @@ def test_allow_substring():
 
 def test_bundled_allow():
     gate = load("_spell_bundled")
-    words = gate.load_words(WORDS)
-    entries = gate.load_allow(os.path.join(REPO, "allow.txt"), words)
+    words, stems = gate.load_word_file(WORDS)
+    entries = gate.load_allow(os.path.join(REPO, "allow.txt"), words, stems)
     ws = set((e[2], e[3]) for e in entries if e[0] == "bilbospocketses/ws-scrcpy-web")
     check("bundled allow.txt parses against words.txt and holds the classified ws-scrcpy-web entries",
-          len(entries) == 30 and len(ws) == 27
+          len(entries) == 31 and len(ws) == 27
           and ("src/common/ScanMessage.ts", "cancelled") in ws
           and ("src/server/pairing/qr.ts", "centred") in ws
           and ("src/app/player/h265-utils.ts", "colour") in ws, sorted(ws))
     sf = set((e[2], e[3]) for e in entries if e[0] == "bilbospocketses/streamflex")
-    check("bundled allow.txt holds the three streamflex entries",
+    check("bundled allow.txt holds the four streamflex entries",
           sf == {("src/external/nanosvg.h", "grey"),
                  ("design/research/overlay/13-injection-engineering.md", "dialogue"),
-                 ("design/research/overlay/21-services-majors-a.md", "dialogue")}, sorted(sf))
+                 ("design/research/overlay/21-services-majors-a.md", "dialogue"),
+                 ("design/research/overlay/24-linux-full-firefox.md", "endeavouros")}, sorted(sf))
     check("bundled allow.txt names no repository but the public ws-scrcpy-web and streamflex",
           set(e[0] for e in entries) == {"bilbospocketses/ws-scrcpy-web",
                                          "bilbospocketses/streamflex"}, entries)
@@ -830,7 +831,7 @@ def test_repo_option():
 def test_cli_basics():
     code, out = run_cli(None, "--version")
     check("--version prints the version and exits 0",
-          code == 0 and out.strip() == "american-spelling 1.0.1", out)
+          code == 0 and out.strip() == "american-spelling 1.0.2", out)
     code, out = run_cli(None, "--no-such-flag")
     check("an unknown flag is exit 2", code == 2, out)
     code, out = run_cli(None, "--help")

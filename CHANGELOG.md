@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-09
+
+### Added
+
+- `allow.txt`: an entry for the public `bilbospocketses/streamflex`, a Linux distribution's name
+  in one research note.
+
 ## [1.0.1] - 2026-10-09
 
 ### Added
@@ -55,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or allow file, so a misconfigured run can never read as a pass.
 - Test suite on real git fixtures, with mutation checks, run on Linux and Windows.
 
-[Unreleased]: https://github.com/bilbospocketses/american-spelling/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/bilbospocketses/american-spelling/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/bilbospocketses/american-spelling/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/bilbospocketses/american-spelling/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bilbospocketses/american-spelling/releases/tag/v1.0.0
