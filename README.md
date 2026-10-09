@@ -1,5 +1,9 @@
 # american-spelling
 
+[![CI](https://github.com/bilbospocketses/american-spelling/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bilbospocketses/american-spelling/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bilbospocketses/american-spelling/badge)](https://scorecard.dev/viewer/?uri=github.com/bilbospocketses/american-spelling)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A CI gate that fails a pull request when the lines it adds, or its commit messages, use British
 spelling instead of American spelling.
 
