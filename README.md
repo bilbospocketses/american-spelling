@@ -21,7 +21,7 @@ spelling instead of American spelling.
 
 ## Substring stems
 
-A whole-piece lookup misses a compound written with no separator, such as `colourpick` or
+A whole-piece lookup misses a compound written with no separator, such as `colourpick` or <!-- spelling: allow -->
 `bgcolourx`. So a short, curated list of **stems** is also matched *inside* any piece that is <!-- spelling: allow -->
 not itself a listed word:
 
