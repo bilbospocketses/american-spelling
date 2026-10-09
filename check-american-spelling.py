@@ -24,6 +24,15 @@ is looked up whole, case-insensitively. So COLOURS, colour_for, bgColour and
 my-colour are all found, and parameter never matches metre: only a whole piece
 counts.
 
+SUBSTRING STEMS, for compounds with no separator (colourpick, bgcolourx). A
+short curated list of stems -- the `substring <stem> <american>` lines of the
+word list, data like every other word -- is also matched INSIDE a piece that is
+not itself a listed word. A stem qualifies only if it never occurs inside an
+American word: colour, behaviour, favour and the like do; glamour (American
+too) and every -ise, -re or -l stem do not. A stem that occurs inside an
+American spelling in the list is a word-list error. A hit reads
+`<piece> (contains <stem>) -> <piece with the American stem>`.
+
 EXCEPTIONS, for verbatim quotes and fixed external identifiers (a library's
 own British parameter name):
 
@@ -44,8 +53,10 @@ own British parameter name):
     repository's `origin` remote URL; with neither, no entry applies and a note
     goes to stderr. Globs are repo-relative: `*` and `?` stay inside one
     directory, `**/` spans any number. An entry with no reason, a malformed
-    line, or a word not in the word list is an error (exit 2), not a silent
-    no-op. Entries apply to files only, never to commit messages.
+    line, or a word the gate can never flag (neither a listed word nor one
+    containing a substring stem) is an error (exit 2), not a silent no-op. A
+    substring hit is skipped by an entry naming its stem or the whole piece.
+    Entries apply to files only, never to commit messages.
     (--allow-file <path> replaces allow.txt; it exists for the test suite.);
   * when the scanned repository is this gate's own (the script sits at its
     root), the script, words.txt, allow.txt and tests/run_tests.py are
@@ -76,7 +87,7 @@ import subprocess
 import sys
 from collections import Counter
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_WORDS = os.path.join(HERE, "words.txt")
@@ -107,32 +118,58 @@ class WordsError(Exception):
     pass
 
 
-def parse_words(text):
-    """{british: american}, both lower case. Raises WordsError on a bad line."""
-    words = {}
+STEM_KEYWORD = "substring"
+
+
+def parse_word_file(text):
+    """({british: american}, {stem: american}), all lower case. The second holds the
+    `substring <stem> <american>` lines. Raises WordsError on a bad line."""
+    words, stems = {}, {}
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split()
-        if len(parts) != 2:
+        table = words
+        if parts[0] == STEM_KEYWORD:
+            parts, table = parts[1:], stems
+            if len(parts) != 2:
+                raise WordsError("line %d: expected `%s <stem> <american>`, got %r"
+                                 % (n, STEM_KEYWORD, raw))
+        elif len(parts) != 2:
             raise WordsError("line %d: expected `<british> <american>`, got %r" % (n, raw))
         brit, amer = parts
         if not (WORD.match(brit) and WORD.match(amer)):
             raise WordsError("line %d: words must be lower case ASCII letters, got %r" % (n, raw))
         if brit == amer:
             raise WordsError("line %d: %r maps to itself" % (n, brit))
-        if brit in words:
+        if brit in table:
             raise WordsError("line %d: %r is listed twice" % (n, brit))
-        words[brit] = amer
+        table[brit] = amer
     if not words:
         raise WordsError("the word list is empty")
-    return words
+    # A stem inside an American spelling would flag the gate's own corrections.
+    american = set(words.values()) | set(stems.values())
+    for stem in sorted(stems):
+        inside = sorted(a for a in american if stem in a)
+        if inside:
+            raise WordsError("substring stem %r occurs inside the American spelling %r"
+                             % (stem, inside[0]))
+    return words, stems
+
+
+def parse_words(text):
+    """{british: american}, both lower case. Raises WordsError on a bad line."""
+    return parse_word_file(text)[0]
+
+
+def load_word_file(path):
+    with open(path, encoding="utf-8") as fh:
+        return parse_word_file(fh.read())
 
 
 def load_words(path):
-    with open(path, encoding="utf-8") as fh:
-        return parse_words(fh.read())
+    return load_word_file(path)[0]
 
 
 # ---- scanning a line ------------------------------------------------------------
@@ -152,16 +189,49 @@ def match_case(word, american):
     return american
 
 
-def scan_line(text, words):
-    """[(word, american)] for every British piece on one line; [] when marked."""
+def replace_stem(piece, stem, american):
+    """PIECE with every case-insensitive STEM replaced by AMERICAN, each in its case."""
+    out, low, i = [], piece.lower(), 0
+    while True:
+        j = low.find(stem, i)
+        if j < 0:
+            return "".join(out) + piece[i:]
+        out.append(piece[i:j] + match_case(piece[j:j + len(stem)], american))
+        i = j + len(stem)
+
+
+def stem_hits(piece, stems):
+    """[(piece, american piece, stem)] for each substring stem inside PIECE."""
+    low = piece.lower()
+    found = [s for s in sorted(stems) if s in low]
+    if not found:
+        return []
+    fixed = piece
+    for s in found:
+        fixed = replace_stem(fixed, s, stems[s])
+    if low in stems:  # the piece IS a stem: report it as a plain word
+        return [(piece, fixed, None)]
+    return [(piece, fixed, s) for s in found]
+
+
+def scan_line(text, words, stems=None):
+    """[(word, american, stem)] for every British piece on one line; [] when marked.
+    STEM is None for a whole-word hit, else the substring stem found inside WORD."""
     if MARKER in text.lower():
         return []
     hits = []
     for piece in pieces(text):
         amer = words.get(piece.lower())
         if amer is not None:
-            hits.append((piece, match_case(piece, amer)))
+            hits.append((piece, match_case(piece, amer), None))
+        elif stems:
+            hits += stem_hits(piece, stems)
     return hits
+
+
+def label(word, stem):
+    """How a finding names its word: `word`, or `word (contains stem)`."""
+    return word if stem is None else "%s (contains %s)" % (word, stem)
 
 
 # ---- the allow file -------------------------------------------------------------
@@ -191,9 +261,11 @@ def glob_to_regex(glob):
     return re.compile("^" + "".join(out) + "$")
 
 
-def parse_allow(text, words):
+def parse_allow(text, words, stems=None):
     """[(slug, glob regex, glob, word)], slug lower case. Every entry sits under a
-    `#` reason comment; a blank line ends a reason."""
+    `#` reason comment; a blank line ends a reason. The word is a listed word or
+    contains a substring stem: any other word could never be flagged."""
+    stems = stems or {}
     entries, have_reason = [], False
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
@@ -211,15 +283,16 @@ def parse_allow(text, words):
             raise AllowError("line %d: %r is not an `owner/repo` slug" % (n, slug))
         if not have_reason:
             raise AllowError("line %d: entry %r has no `#` reason comment above it" % (n, line))
-        if word not in words:
-            raise AllowError("line %d: %r is not in the gate's British word list" % (n, word))
+        if word not in words and not any(s in word for s in stems):
+            raise AllowError("line %d: %r is not in the gate's British word list and contains "
+                             "no substring stem" % (n, word))
         entries.append((slug.lower(), glob_to_regex(glob), glob, word))
     return entries
 
 
-def load_allow(path, words):
+def load_allow(path, words, stems=None):
     with open(path, encoding="utf-8") as fh:
-        return parse_allow(fh.read(), words)
+        return parse_allow(fh.read(), words, stems)
 
 
 def entries_for(entries, slug):
@@ -230,9 +303,10 @@ def entries_for(entries, slug):
     return [(e[1], e[3]) for e in entries if e[0] == s]
 
 
-def allowed(entries, path, word):
-    w = word.lower()
-    return any(e[1] == w and e[0].match(path) for e in entries)
+def allowed(entries, path, word, stem=None):
+    """True when an entry for PATH names WORD -- or, for a substring hit, its STEM."""
+    keys = {word.lower(), stem} if stem else {word.lower()}
+    return any(e[1] in keys and e[0].match(path) for e in entries)
 
 
 def slug_from_url(url):
@@ -307,7 +381,7 @@ def _same_dir(a, b):
 
 # ---- the two modes --------------------------------------------------------------
 
-def scan_branch(repo, base, words, allow, skip):
+def scan_branch(repo, base, words, allow, skip, stems=None):
     """(findings, merge-base) where findings is [(where, word, american)]; raises
     ValueError with the message for an exit-2 condition."""
     rc, _o, _e = git(repo, ["rev-parse", "--verify", "--quiet", base + "^{commit}"])
@@ -335,17 +409,17 @@ def scan_branch(repo, base, words, allow, skip):
     for path, lineno, text in added_lines(diff):
         if path in skip:
             continue
-        for word, amer in scan_line(text, words):
-            if not allowed(allow, path, word):
-                findings.append(("%s:%d" % (path, lineno), word, amer))
+        for word, amer, stem in scan_line(text, words, stems):
+            if not allowed(allow, path, word, stem):
+                findings.append(("%s:%d" % (path, lineno), label(word, stem), amer))
     for sha, body in commit_messages(repo, "%s..HEAD" % mb):
         for n, text in enumerate(body.split("\n"), 1):
-            for word, amer in scan_line(text, words):
-                findings.append(("commit %s:%d" % (sha[:10], n), word, amer))
+            for word, amer, stem in scan_line(text, words, stems):
+                findings.append(("commit %s:%d" % (sha[:10], n), label(word, stem), amer))
     return findings, mb
 
 
-def scan_all(repo, words, allow, skip):
+def scan_all(repo, words, allow, skip, stems=None):
     rc, out, err = git(repo, ["ls-files", "-z"])
     if rc != 0:
         raise ValueError("git ls-files failed: %s" % err)
@@ -362,9 +436,9 @@ def scan_all(repo, words, allow, skip):
         if b"\x00" in data[:BINARY_PROBE]:
             continue
         for n, text in enumerate(data.decode("utf-8", "replace").split("\n"), 1):
-            for word, amer in scan_line(text, words):
-                if not allowed(allow, path, word):
-                    findings.append(("%s:%d" % (path, n), word, amer))
+            for word, amer, stem in scan_line(text, words, stems):
+                if not allowed(allow, path, word, stem):
+                    findings.append(("%s:%d" % (path, n), label(word, stem), amer))
     return findings
 
 
@@ -406,7 +480,7 @@ def main(argv=None):
     repo = os.path.normpath(top.strip())
 
     try:
-        words = load_words(args.words)
+        words, stems = load_word_file(args.words)
     except (WordsError, OSError) as exc:
         print("american-spelling: BLOCKED: word list %s: %s" % (args.words, exc))
         return 2
@@ -424,7 +498,7 @@ def main(argv=None):
     all_entries = []
     for path in allow_files:
         try:
-            all_entries += load_allow(path, words)
+            all_entries += load_allow(path, words, stems)
         except (AllowError, OSError) as exc:
             print("american-spelling: BLOCKED: allow file %s: %s" % (path, exc))
             return 2
@@ -440,7 +514,7 @@ def main(argv=None):
 
     if args.all:
         try:
-            findings = scan_all(repo, words, allow, skip)
+            findings = scan_all(repo, words, allow, skip, stems)
         except ValueError as exc:
             print("american-spelling: BLOCKED: %s" % exc)
             return 2
@@ -455,13 +529,14 @@ def main(argv=None):
         return 0
 
     try:
-        findings, mb = scan_branch(repo, args.base, words, allow, skip)
+        findings, mb = scan_branch(repo, args.base, words, allow, skip, stems)
     except (ValueError, RuntimeError) as exc:
         print("american-spelling: BLOCKED: %s" % exc)
         return 2
     print("american-spelling: lines added since %s (merge-base of %s and HEAD), plus their "
-          "commit messages; %d British word(s) in the list; %d allow entr(ies) for %s"
-          % (mb[:10], args.base, len(words), len(allow), slug or "(no slug)"))
+          "commit messages; %d British word(s) in the list, %d substring stem(s); "
+          "%d allow entr(ies) for %s"
+          % (mb[:10], args.base, len(words), len(stems), len(allow), slug or "(no slug)"))
     if not findings:
         return 0
     print("")

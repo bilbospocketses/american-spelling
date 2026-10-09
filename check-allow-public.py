@@ -68,8 +68,8 @@ def verdict(slug, fetcher=fetch):
 
 def slugs_in(allow_path, words_path):
     gate = _gate()
-    words = gate.load_words(words_path)
-    entries = gate.load_allow(allow_path, words)
+    words, stems = gate.load_word_file(words_path)
+    entries = gate.load_allow(allow_path, words, stems)
     return sorted(set(e[0] for e in entries))
 
 

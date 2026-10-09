@@ -10,12 +10,32 @@ spelling instead of American spelling.
 - **Stdlib-only Python 3**, one script, no install step. It needs `git` on the `PATH`.
 - **An explicit word list, never suffix rules.** A rule such as "-ise is British" would flag
   promise, exercise, otherwise and surprise; "-our" would flag four, hour and your. The gate
-  instead looks every word up in [`words.txt`](words.txt), which lists 405 British spellings
+  instead looks every word up in [`words.txt`](words.txt), which lists 452 British spellings
   and the American spelling of each, with every inflection written out.
 - **Words inside identifiers are found.** A line is cut into letter runs (digits, `_`, `-` and
   punctuation separate them), and each run is cut again at camelCase boundaries, so
   `COLOURS`, `colour_for`, `bgColour`, `my-colour` and `HTMLColour` are all caught. <!-- spelling: allow -->
   Only whole pieces count, so `parameter` never matches `metre`. <!-- spelling: allow -->
+- **Compounds with no separator are found too, for a few safe stems.** See
+  [Substring stems](#substring-stems).
+
+## Substring stems
+
+A whole-piece lookup misses a compound written with no separator, such as `colourpick` or
+`bgcolourx`. So a short, curated list of **stems** is also matched *inside* any piece that is <!-- spelling: allow -->
+not itself a listed word:
+
+`colour`, `behaviour`, `favour`, `honour`, `neighbour`, `flavour`, `harbour`, `humour`, <!-- spelling: allow -->
+`rumour`, `labour`, `vapour`, `savour`, `odour`, `armour`, `clamour`, `endeavour` <!-- spelling: allow -->
+
+A stem is on the list only if it never occurs inside an American word. That is why it holds
+-our stems only, and why `glamour`, which is American too, is not on it. The stems are data,
+not code: they are the `substring <stem> <american>` lines at the end of `words.txt`, and the
+gate refuses to start (exit 2) if a stem occurs inside any American spelling in that file.
+
+A substring hit prints as `path:line: <piece> (contains <stem>) -> <american piece>`, for
+example `app.js:3: colourpick (contains colour) -> colorpick`. The inline marker skips it like <!-- spelling: allow -->
+any other hit, and an allow entry naming either the stem or the whole piece exempts it.
 
 ## What it checks, and what it does not
 
@@ -50,8 +70,10 @@ parameter name, a protocol value, or a file name another system owns.
    - `owner/repo` selects the repository the entry applies to (case-insensitive). Globs are
      relative to that repository's root: `*` and `?` stay inside one directory, `**/` spans
      any number of directories, and `**` on its own matches every path.
-   - The word is lower case and must be in `words.txt`.
-   - An entry with no reason, a malformed line or an unknown word stops the gate with exit 2.
+   - The word is lower case and must be in `words.txt`, or contain one of its substring
+     stems: a stem exempts every compound that contains it, a whole piece exempts only itself.
+   - An entry with no reason, a malformed line or a word the gate could never flag stops the
+     gate with exit 2.
      A mistake in an allow file is never a silent no-op.
    - Entries apply to files only, never to commit messages.
 
@@ -101,7 +123,7 @@ python check-american-spelling.py [--repo PATH] [--base REF] [--repo-slug OWNER/
 | `--private-allow PATH` | `$AMERICAN_SPELLING_PRIVATE_ALLOW`, else none | The private allow file. |
 | `--words PATH` | `words.txt` beside the script | The word list. |
 | `--all` | off | Scan every tracked text file. Report only; always exits 0. |
-| `--version` | | Print `american-spelling 1.0.0` and exit. |
+| `--version` | | Print `american-spelling 1.0.1` and exit. |
 
 `--allow-file PATH` replaces the bundled `allow.txt`. It exists for the test suite only.
 
@@ -110,7 +132,7 @@ python check-american-spelling.py [--repo PATH] [--base REF] [--repo-slug OWNER/
 | Code | Meaning |
 |---|---|
 | 0 | Clean (and always, with `--all`). |
-| 1 | British spelling found. Each finding prints as `path:line: word -> american`, or `commit <sha>:<line>: ...` for a commit message. |
+| 1 | British spelling found. Each finding prints as `path:line: word -> american` (or `path:line: piece (contains stem) -> american` for a substring hit), or `commit <sha>:<line>: ...` for a commit message. |
 | 2 | Usage error; a word list or allow file that is missing or malformed; a base ref that does not resolve; a **shallow** clone; or no merge-base. |
 
 A shallow clone is refused even when a merge-base exists. With the merge-base's parents cut
@@ -119,8 +141,21 @@ off, `B..HEAD` would walk the whole history and fail on old commit messages. Not
 
 ## Use it in GitHub Actions
 
-Pin the gate by tag or by full commit SHA. **The pin is the upgrade lever:** a new word, a new
-`allow.txt` entry or a fix reaches your repository when you bump it.
+Pin the gate by full commit SHA, with the tag in a trailing comment. **SHA pinning is
+recommended:** a tag can be moved, a commit SHA cannot, and a SHA with a version comment is
+the form Dependabot and OpenSSF Scorecard expect. A tag pin works too. **The pin is the
+upgrade lever:** a new word, a new `allow.txt` entry or a fix reaches your repository when
+you bump it.
+
+Replace `<commit-sha>` below with the full commit SHA the tag points at. A file cannot carry
+the SHA of the commit it is part of, so this one prints it:
+
+```
+git ls-remote https://github.com/bilbospocketses/american-spelling.git 'refs/tags/v1.0.1^{}'
+```
+
+The base branch comes from the repository, so the snippet works whether your default branch
+is `main`, `master` or anything else.
 
 ```yaml
 name: American spelling
@@ -142,13 +177,13 @@ jobs:
       - name: Fetch the base branch
         run: git fetch --no-tags origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
         env:
-          BASE: ${{ github.base_ref || 'main' }}
+          BASE: ${{ github.base_ref || github.event.repository.default_branch }}
 
       - name: Check out the gate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: bilbospocketses/american-spelling
-          ref: v1.0.0
+          ref: <commit-sha>  # v1.0.1
           path: .american-spelling
           persist-credentials: false
 
@@ -164,17 +199,34 @@ jobs:
           --base "origin/${BASE}"
           --repo-slug "${SLUG}"
         env:
-          BASE: ${{ github.base_ref || 'main' }}
+          BASE: ${{ github.base_ref || github.event.repository.default_branch }}
           SLUG: ${{ github.repository }}
 ```
 
 The gate's checkout lands in `.american-spelling/`, which is untracked in your repository, so
 it is never part of the diff. Make the job a required status check to block merges on it.
 
+## Adopting on an existing branch
+
+The gate checks a branch's **commit messages** as well as its added lines. A branch that was
+already open before you added the gate may carry older commit messages in British spelling,
+and those fail the gate even when every line the branch adds is clean.
+
+Either:
+
+- **adopt the gate on a fresh branch** once the existing one has merged. Squash-merge the old
+  branch with an American commit message, then add the workflow on a new branch cut from the
+  updated default branch; or
+- **reword** the offending commit messages on the existing branch (an interactive rebase),
+  then force-push it.
+
+The inline marker `spelling: allow` also works in a commit message, but it is meant for a
+verbatim quote, not for clearing old history.
+
 ## Use it anywhere else
 
 ```
-git clone --branch v1.0.0 https://github.com/bilbospocketses/american-spelling.git
+git clone --branch v1.0.1 https://github.com/bilbospocketses/american-spelling.git
 git -C <your-repo> fetch origin main          # no --depth: the gate needs full history
 python american-spelling/check-american-spelling.py --repo <your-repo> --base origin/main
 ```
@@ -190,9 +242,9 @@ python check-allow-public.py    # needs the network: every allow.txt repository 
 ```
 
 The suite builds real git repositories in a temporary directory. It also breaks the gate on
-purpose in eleven ways (no camelCase cut, substring matching, diffing from `main`'s tip,
-reading commit messages over all history, and more) and checks that each break turns a case
-red. CI runs it on Linux and Windows, and runs the gate on this repository's own pull requests.
+purpose in twelve ways (no camelCase cut, substring matching, ignoring the substring stems,
+diffing from `main`'s tip, reading commit messages over all history, and more) and checks that
+each break turns a case red. CI runs it on Linux and Windows, and runs the gate on this repository's own pull requests.
 When the gate checks its own repository, it skips the files that have to spell the British
 words: the script, `words.txt`, `allow.txt` and `tests/run_tests.py`.
 

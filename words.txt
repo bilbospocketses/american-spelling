@@ -11,6 +11,13 @@
 #
 # Before adding a word, make sure it is not also an American spelling of
 # something else ("analyses", "licensed" and "practice" are, so they are absent).
+#
+# The last section holds the SUBSTRING STEMS: `substring <stem> <american>`
+# lines. A stem is also matched INSIDE a word piece that is not listed whole, so
+# compounds with no separator (colourpick, bgcolourx) are caught. Add a stem
+# only if it never occurs inside an American word: "glamour" is American too,
+# so it is absent, and "grey" is absent because it occurs inside "greyhound".
+# A stem found inside an American spelling in this file makes the gate exit 2.
 
 # -our -> -or
 colour color
@@ -22,6 +29,10 @@ colourless colorless
 discolour discolor
 discoloured discolored
 watercolour watercolor
+recolour recolor
+recolours recolors
+recoloured recolored
+recolouring recoloring
 behaviour behavior
 behaviours behaviors
 behavioural behavioral
@@ -268,6 +279,46 @@ standardisation standardization
 standardisations standardizations
 standardiser standardizer
 standardisers standardizers
+rasterise rasterize
+rasterises rasterizes
+rasterised rasterized
+rasterising rasterizing
+rasterisation rasterization
+rasterisations rasterizations
+rasteriser rasterizer
+rasterisers rasterizers
+parallelise parallelize
+parallelises parallelizes
+parallelised parallelized
+parallelising parallelizing
+parallelisation parallelization
+parallelisations parallelizations
+paralleliser parallelizer
+parallelisers parallelizers
+localise localize
+localises localizes
+localised localized
+localising localizing
+localisation localization
+localisations localizations
+localiser localizer
+localisers localizers
+virtualise virtualize
+virtualises virtualizes
+virtualised virtualized
+virtualising virtualizing
+virtualisation virtualization
+virtualisations virtualizations
+virtualiser virtualizer
+virtualisers virtualizers
+generalise generalize
+generalises generalizes
+generalised generalized
+generalising generalizing
+generalisation generalization
+generalisations generalizations
+generaliser generalizer
+generalisers generalizers
 recognisable recognizable
 customisable customizable
 serialisable serializable
@@ -369,6 +420,8 @@ benefitting benefiting
 # -ogue -> -og, -mme -> -m
 dialogue dialog
 dialogues dialogs
+analogue analog
+analogues analogs
 catalogue catalog
 catalogues catalogs
 catalogued cataloged
@@ -440,3 +493,24 @@ manoeuvre maneuver
 manoeuvres maneuvers
 manoeuvred maneuvered
 ageing aging
+maths math
+
+# Substring stems (see the header): matched inside a piece that is not listed
+# whole, so a compound such as colourpick is caught. -our stems only; each is
+# checked against every American spelling in this file.
+substring colour color
+substring behaviour behavior
+substring favour favor
+substring honour honor
+substring neighbour neighbor
+substring flavour flavor
+substring harbour harbor
+substring humour humor
+substring rumour rumor
+substring labour labor
+substring vapour vapor
+substring savour savor
+substring odour odor
+substring armour armor
+substring clamour clamor
+substring endeavour endeavor

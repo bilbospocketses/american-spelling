@@ -15,6 +15,13 @@ WHAT THIS PINS, and the direction in which each defect would read as a pass:
     precise, enterprise, surprise, advise, revise, comprise, expertise, rise,
     wise, licensed, analyses (the American plural of analysis), cancellation,
     parameter, programmer, greyhound, four, hour, more;
+  * the substring stems (the `substring` lines of words.txt) are found inside
+    a compound with no separator -- colourpick, bgcolourx, savoury, and in a
+    commit message -- reported as `<piece> (contains <stem>) -> <american>`,
+    and never inside an American word (glamour, colorpick, paramour, flour);
+    an allow entry naming the stem or the whole piece skips a substring hit,
+    an entry naming another piece does not, and the marker skips it too; a
+    stem inside an American spelling of the list is exit 2;
   * the marker `spelling: allow` skips its line, in a file and in a commit
     message; an allow entry (public allow.txt, or the private file named by
     --private-allow or $AMERICAN_SPELLING_PRIVATE_ALLOW) skips a word only for
@@ -41,8 +48,9 @@ WHAT THIS PINS, and the direction in which each defect would read as a pass:
   * --all scans every tracked text file, skips binary files, and always exits 0;
   * MUTANTS: the gate is loaded by path and broken on purpose -- no camelCase
     cut, `_` or `-` kept inside a word, substring matching instead of whole
-    words, context and removed lines counted as added, the diff taken from
-    main's tip, commit messages read over all history -- and each mutant must
+    words, the substring stems ignored, context and removed lines counted as
+    added, the diff taken from main's tip, commit messages read over all
+    history -- and each mutant must
     turn at least one of these cases red.
     A green suite is then evidence that the cases are sensitive to the gate,
     not merely compatible with it.
@@ -338,7 +346,8 @@ def sc_identifiers(run):
 FALSE_POSITIVES = ("promise exercise otherwise precise enterprise surprise advise revise comprise "
                    "expertise rise wise licensed analyses cancellation parameter programmer greyhound "
                    "four hour more there where were tour your colorful behavior gray center "
-                   "Promise_Exercise otherwiseMode")
+                   "Promise_Exercise otherwiseMode glamour glamorous colorpick bgcolorx savory "
+                   "armory flour detour paramour troubadour honorific odorless analog math")
 
 
 def _build_false_positives():
@@ -384,9 +393,36 @@ def sc_commit_message(run):
             ("...and the marker skips a message line", not any("centre" in g for g in got), got)]
 
 
+COMPOUND_LINES = ("colourpick = 1\n", "bgcolourx = 2\n", "the savoury dish\n",
+                  "x = 'colourpick'  # spelling: allow\n", "colorpick glamour savory\n")
+
+
+def _build_compounds():
+    repo = new_repo({"z.txt": "z\n"})
+    commit(repo, "feat: add the colourpicker", {"comp.py": "".join(COMPOUND_LINES)})
+    return repo
+
+
+def sc_compounds(run):
+    code, out = run(cached(_build_compounds))
+    got = findings(out)
+    want = ["comp.py:1: colourpick (contains colour) -> colorpick",
+            "comp.py:2: bgcolourx (contains colour) -> bgcolorx",
+            "comp.py:3: savoury (contains savour) -> savory"]
+    rows = [("compounds: a substring stem inside a compound fails (exit 1)", code == 1, out)]
+    for w in want:
+        rows.append(("compounds: %s" % w, w in got, got))
+    rows.append(("compounds: a commit message compound is flagged",
+                 any(re.match(r"commit [0-9a-f]{10}:1: colourpicker \(contains colour\) -> "
+                              r"colorpicker$", g) for g in got), got))
+    rows.append(("compounds: the marker skips a substring hit, American words are not hit "
+                 "(exactly four findings)", len(got) == 4, got))
+    return rows
+
+
 SCENARIOS = (sc_added_flagged, sc_untouched_not_flagged, sc_removed_not_flagged,
              sc_renamed_not_flagged, sc_main_moved, sc_merges_main, sc_identifiers, sc_false_positives,
-             sc_marker, sc_commit_message)
+             sc_marker, sc_commit_message, sc_compounds)
 
 
 def run_scenarios(run, prefix):
@@ -514,18 +550,50 @@ def test_allow_never_in_commit_messages():
           got)
 
 
+def test_allow_substring():
+    repo = new_repo({"z.txt": "z\n"})
+    commit(repo, "compounds", {"lib/a.py": "colourpick = 1\n", "lib/b.py": "bgcolourx = 2\n",
+                               "lib/d.py": "the savoury dish\n", "other/c.py": "colourpick = 3\n",
+                               "other/e.py": "colourpick = 4  # spelling: allow\n"})
+    allow = allow_file("# the stem\nacme/w lib/a.py colour\n"
+                       "# the whole piece\nacme/w lib/b.py bgcolourx\n"
+                       "# a stem the whole-word list does not hold\nacme/w lib/d.py savour\n"
+                       "# another piece: never applies to colourpick\nacme/w other/** colourwheel\n")
+    code, out = run_cli(repo, "--allow-file", allow, "--repo-slug", "acme/w")
+    check("allow: an entry naming the stem or the whole piece skips a substring hit; an entry "
+          "naming another piece does not, and the marker skips its line (one finding)",
+          code == 1 and findings(out) == ["other/c.py:1: colourpick (contains colour) -> colorpick"],
+          out)
+    code, out = run_cli(repo, "--allow-file", allow, "--repo-slug", "acme/other")
+    check("allow: substring entries apply only to their repository (four findings)",
+          code == 1 and len(findings(out)) == 4, out)
+    code, out = run_cli(repo, "--allow-file", allow_file("# why\nacme/w ** colourwash\n"),
+                        "--repo-slug", "acme/w")
+    check("allow file: a word containing a stem is a valid entry (exit 1, not 2)", code == 1, out)
+    code, out = run_cli(repo, "--allow-file", allow_file("# why\nacme/w ** glamour\n"),
+                        "--repo-slug", "acme/w")
+    check("allow file: a word neither listed nor containing a stem is exit 2",
+          code == 2 and "glamour" in out, out)
+
+
 def test_bundled_allow():
     gate = load("_spell_bundled")
     words = gate.load_words(WORDS)
     entries = gate.load_allow(os.path.join(REPO, "allow.txt"), words)
     ws = set((e[2], e[3]) for e in entries if e[0] == "bilbospocketses/ws-scrcpy-web")
     check("bundled allow.txt parses against words.txt and holds the classified ws-scrcpy-web entries",
-          len(entries) == 27 and len(ws) == 27
+          len(entries) == 30 and len(ws) == 27
           and ("src/common/ScanMessage.ts", "cancelled") in ws
           and ("src/server/pairing/qr.ts", "centred") in ws
           and ("src/app/player/h265-utils.ts", "colour") in ws, sorted(ws))
-    check("bundled allow.txt names no repository but the public ws-scrcpy-web",
-          set(e[0] for e in entries) == {"bilbospocketses/ws-scrcpy-web"}, entries)
+    sf = set((e[2], e[3]) for e in entries if e[0] == "bilbospocketses/streamflex")
+    check("bundled allow.txt holds the three streamflex entries",
+          sf == {("src/external/nanosvg.h", "grey"),
+                 ("design/research/overlay/13-injection-engineering.md", "dialogue"),
+                 ("design/research/overlay/21-services-majors-a.md", "dialogue")}, sorted(sf))
+    check("bundled allow.txt names no repository but the public ws-scrcpy-web and streamflex",
+          set(e[0] for e in entries) == {"bilbospocketses/ws-scrcpy-web",
+                                         "bilbospocketses/streamflex"}, entries)
     repo = new_repo({"z.txt": "z\n"})
     commit(repo, "scan events", {"src/common/ScanMessage.ts": "type: 'scan.cancelled';\n",
                                  "src/other.ts": "type: 'scan.cancelled';\n"})
@@ -634,7 +702,12 @@ def test_allow_public_check():
     with contextlib.redirect_stdout(io.StringIO()):
         checker.main([], fetcher=lambda s: bundled.append(s) or (200, {"private": False}))
     check("public check: by default it reads the bundled allow.txt",
-          bundled == ["bilbospocketses/ws-scrcpy-web"], bundled)
+          bundled == ["bilbospocketses/streamflex", "bilbospocketses/ws-scrcpy-web"], bundled)
+    with contextlib.redirect_stdout(io.StringIO()):
+        code = checker.main(["--allow-file", allow_file("# a\npub/one ** bgcolourx\n")],
+                            fetcher=fetcher)
+    check("public check: an entry naming a compound that contains a stem is valid (exit 0)",
+          code == 0)
 
 
 def test_words_file():
@@ -669,6 +742,19 @@ def test_words_file():
         check("--words: %s is exit 2" % label, code == 2 and "word list" in out, out)
     code, out = run_cli(repo, "--words", os.path.join(wdir, "missing.txt"))
     check("--words <missing path> is exit 2", code == 2 and "missing.txt" in out, out)
+    for label, text in (("a substring line with one word", "zorp zap\nsubstring zor\n"),
+                        ("a substring line with three words", "zorp zap\nsubstring zor za zi\n"),
+                        ("a substring stem mapped to itself", "zorp zap\nsubstring zor zor\n"),
+                        ("a substring stem listed twice", "zorp zap\nsubstring zor za\nsubstring zor zi\n"),
+                        ("a substring stem inside an American spelling", "zorp zapzap\nsubstring apz x\n"),
+                        ("only substring lines", "substring zor za\n")):
+        code, out = words_run(text)
+        check("--words: %s is exit 2" % label, code == 2 and "word list" in out, out)
+    code, out = words_run("zorp zap\nsubstring olou olo\n")
+    check("--words: a custom list's substring stem is found inside a piece, and a list with no "
+          "substring lines has none (zorp only above)",
+          code == 1 and findings(out) == ["w.txt:1: zorp -> zap",
+                                          "w.txt:1: colour (contains olou) -> color"], out)
     allow = allow_file("# reason\nacme/widgets ** zorp\n")
     code, out = words_run("zorp zap\n", "--allow-file", allow, "--repo-slug", "acme/widgets")
     check("--words + allow file: an allow entry is checked against the CUSTOM list and applies",
@@ -744,7 +830,7 @@ def test_repo_option():
 def test_cli_basics():
     code, out = run_cli(None, "--version")
     check("--version prints the version and exits 0",
-          code == 0 and out.strip() == "american-spelling 1.0.0", out)
+          code == 0 and out.strip() == "american-spelling 1.0.1", out)
     code, out = run_cli(None, "--no-such-flag")
     check("an unknown flag is exit 2", code == 2, out)
     code, out = run_cli(None, "--help")
@@ -850,6 +936,26 @@ def test_units():
               ("dialogue", "dialog"), ("licence", "license"), ("judgement", "judgment"),
               ("fulfilment", "fulfillment"), ("enrol", "enroll"), ("whilst", "while"),
               ("amongst", "among"), ("practised", "practiced"), ("speciality", "specialty"))))
+    check("words.txt maps the 1.0.1 additions",
+          all(words.get(w) == a for w, a in (
+              ("maths", "math"), ("analogue", "analog"), ("analogues", "analogs"),
+              ("rasterisation", "rasterization"), ("rasterisations", "rasterizations"),
+              ("parallelising", "parallelizing"), ("parallelisation", "parallelization"),
+              ("localisations", "localizations"), ("virtualised", "virtualized"),
+              ("virtualisation", "virtualization"), ("generalises", "generalizes"),
+              ("generalisation", "generalization"), ("recolour", "recolor"),
+              ("recoloured", "recolored"), ("recolouring", "recoloring"), ("recolours", "recolors"))))
+    _w, stems = gate.load_word_file(WORDS)
+    check("words.txt: the substring stems are exactly the curated -our set, glamour excluded",
+          sorted(stems) == sorted(("colour behaviour favour honour neighbour flavour harbour humour "
+                                   "rumour labour vapour savour odour armour clamour endeavour").split())
+          and "glamour" not in stems and stems["colour"] == "color" and stems["savour"] == "savor",
+          sorted(stems.items()))
+    check("stem_hits: a compound is reported with its stem and the American piece, in its case",
+          gate.stem_hits("BGCOLOURX", stems) == [("BGCOLOURX", "BGCOLORX", "colour")]
+          and gate.stem_hits("Colourpick", stems) == [("Colourpick", "Colorpick", "colour")]
+          and gate.stem_hits("savour", stems) == [("savour", "savor", None)]
+          and gate.stem_hits("glamour", stems) == [], gate.stem_hits("BGCOLOURX", stems))
     check("words.txt holds no word that is also American",
           not set(words) & {"analyses", "cancellation", "licensed", "controlled", "promise",
                             "programmer", "parameter", "practice"})
@@ -857,7 +963,8 @@ def test_units():
           not set(words) & set(words.values()), sorted(set(words) & set(words.values())))
     with open(GATE, encoding="utf-8") as fh:
         code_lines = fh.read().split('"""', 2)[2].splitlines()  # everything after the docstring
-    in_code = [(n, hit) for n, ln in enumerate(code_lines, 1) for hit in gate.scan_line(ln, words)]
+    in_code = [(n, hit) for n, ln in enumerate(code_lines, 1)
+               for hit in gate.scan_line(ln, words, stems)]
     check("the gate's code (outside its docstring) spells no listed word: the list is data only",
           not in_code, in_code)
     rx = gate.glob_to_regex("lib/**/*.py")
@@ -896,12 +1003,16 @@ def _kept_inside(chars):
 
 
 def _substring(mod):
-    def scan_line(text, words):
+    def scan_line(text, words, stems=None):
         if mod.MARKER in text.lower():
             return []
         low = text.lower()
-        return [(w, a) for w, a in sorted(words.items()) if w in low]
+        return [(w, a, None) for w, a in sorted(words.items()) if w in low]
     mod.scan_line = scan_line
+
+
+def _no_stems(mod):
+    mod.stem_hits = lambda piece, stems: []
 
 
 def _diff_rewrite(prefix_to_plus, unified):
@@ -967,6 +1078,7 @@ MUTANTS = (
     ("`-` kept inside a word", _kept_inside("-"), "identifiers: ids.py:4: colour -> color"),
     ("digits kept inside a word", _kept_inside("0-9"), "identifiers: ids.py:6: colour -> color"),
     ("substring match instead of whole words", _substring, "words a suffix or substring rule"),
+    ("the substring stems ignored", _no_stems, "compounds: comp.py:1: colourpick (contains colour)"),
     ("context lines counted as added", _diff_rewrite(" ", 3), "an untouched British line"),
     ("removed lines counted as added", _diff_rewrite("-", 0), "a British line the branch REMOVES"),
     ("rename detection off", _git_arg("--find-renames", "--no-renames"), "a file the branch only RENAMES"),
@@ -994,7 +1106,8 @@ def test_mutants():
 def main():
     for t in (test_units, test_cli_basics, test_real_gate, test_allow_slug,
               test_allow_slug_from_remote, test_allow_file_errors,
-              test_allow_never_in_commit_messages, test_bundled_allow, test_private_allow,
+              test_allow_never_in_commit_messages, test_allow_substring, test_bundled_allow,
+              test_private_allow,
               test_allow_public_check, test_words_file,
               test_self_skip, test_repo_option, test_binary_and_deleted, test_missing_base,
               test_shallow_clone, test_all_mode, test_mutants):

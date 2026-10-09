@@ -19,6 +19,9 @@ Thanks for helping. This is a small, solo-maintained project, so the process is 
 - Before adding a word, make sure it is not also an American spelling of something else.
   `analyses` (the plural of analysis), `licensed` and `practice` are all American and must
   not be listed.
+- A `substring <stem> <american>` line is matched inside compounds too. Add one only for a
+  stem that never occurs inside an American word (`glamour` is American, so it is absent);
+  the gate refuses a stem that occurs inside any American spelling in the file.
 
 ## Adding an `allow.txt` entry
 
