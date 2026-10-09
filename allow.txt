@@ -67,3 +67,10 @@ bilbospocketses/ws-scrcpy-web src/server/pairing/qr.ts centred
 bilbospocketses/ws-scrcpy-web common/src/tray.rs cancelled
 bilbospocketses/ws-scrcpy-web common/src/lib.rs cancelled
 bilbospocketses/ws-scrcpy-web launcher/src/linux_tray.rs cancelled
+
+# Third-party code: nanosvg's table of SVG color keywords, where "grey" is a keyword the SVG spec defines
+bilbospocketses/streamflex src/external/nanosvg.h grey
+
+# A proper name: Prime Video's own feature "Dialogue Boost", as Amazon's help pages name it
+bilbospocketses/streamflex design/research/overlay/13-injection-engineering.md dialogue
+bilbospocketses/streamflex design/research/overlay/21-services-majors-a.md dialogue
