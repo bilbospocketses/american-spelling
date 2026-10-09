@@ -1,0 +1,57 @@
+# OpenSSF Scorecard: supply-chain security scoring.
+#
+# Publishes results to the public Scorecard viewer on push to main (OIDC, no PAT)
+# and uploads SARIF to the Security tab. Runs on pull requests too, so it can be a
+# required status check without blocking merges by never reporting.
+#
+# Actions are pinned to COMMIT SHAs (never annotated-tag object SHAs, which the
+# Scorecard publishing verifier rejects as imposter commits), with precise version
+# comments. ossf/scorecard-action is on the repository's patterns_allowed list.
+
+name: Scorecard supply-chain security
+
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '0 13 * * 1'
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      id-token: write          # OIDC for publish_results
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publish only from push events: a pull request's head is not on main yet.
+          publish_results: ${{ github.event_name == 'push' }}
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload SARIF to the Security tab
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif

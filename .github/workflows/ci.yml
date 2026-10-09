@@ -1,0 +1,100 @@
+# CI for the American spelling gate.
+#
+# `build-and-test` is the required status check in the main branch ruleset. It is an
+# aggregate over the jobs below and passes only when every one of them succeeded:
+#   - tests (ubuntu, windows): the suite on real git fixtures, offline;
+#   - spelling: the gate run on this repository itself (added lines + commit messages);
+#   - allow-public: every repository named in allow.txt is public.
+# No job is path-filtered: a required check must report on every pull request.
+#
+# All actions are pinned to commit SHAs (the repository enforces sha_pinning_required),
+# with precise version comments so Dependabot can track them.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.x'
+
+      - name: Run the suite
+        run: python tests/run_tests.py
+
+  spelling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+        env:
+          BASE: ${{ github.base_ref || 'main' }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.x'
+
+      - name: Check American spelling
+        run: >-
+          python check-american-spelling.py
+          --repo .
+          --base "origin/${BASE}"
+          --repo-slug "${SLUG}"
+        env:
+          BASE: ${{ github.base_ref || 'main' }}
+          SLUG: ${{ github.repository }}
+
+  allow-public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.x'
+
+      - name: Every repository named in allow.txt is public
+        run: python check-allow-public.py
+
+  build-and-test:
+    needs: [tests, spelling, allow-public]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        run: |
+          echo "tests=${TESTS} spelling=${SPELLING} allow-public=${ALLOW}"
+          [ "${TESTS}" = "success" ] && [ "${SPELLING}" = "success" ] && [ "${ALLOW}" = "success" ]
+        env:
+          TESTS: ${{ needs.tests.result }}
+          SPELLING: ${{ needs.spelling.result }}
+          ALLOW: ${{ needs.allow-public.result }}

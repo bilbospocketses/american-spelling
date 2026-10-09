@@ -1,0 +1,16 @@
+# Dependabot version updates. The gate itself has no dependencies (stdlib-only
+# Python), so the only ecosystem is the SHA-pinned actions in .github/workflows.
+# All action bumps arrive as ONE grouped pull request, which keeps the
+# codeql-action sub-refs in lockstep.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"

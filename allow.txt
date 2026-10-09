@@ -1,0 +1,69 @@
+# allow.txt -- the PUBLIC allow list for check-american-spelling.py.
+#
+# It may name PUBLIC repositories only. CI runs check-allow-public.py, which
+# fails unless every repository named here answers the unauthenticated GitHub
+# API as public; run it yourself before pushing a change to this file.
+# Private repositories keep their exceptions in a private allow file outside
+# this repository (see the README, "Private repositories").
+#
+# An entry exempts one British word on the paths of one repository, for a
+# FIXED EXTERNAL IDENTIFIER that cannot be Americanized: a library's own
+# parameter, a protocol or API value, a file name another system owns.
+#
+# Format: `<owner/repo> <path-glob> <word>`, one entry per line.
+#   owner/repo  the GitHub slug of the scanned repository (case-insensitive);
+#               the gate gets it from --repo-slug, or from the `origin` remote
+#   path-glob   repo-relative; `*` and `?` stay inside one directory, `**/`
+#               spans any number, and `**` alone matches every path
+#   word        lower case, and present in words.txt
+# Every entry sits under a `#` comment giving its reason; one comment covers
+# every entry that follows it, up to the next blank line. An entry with no
+# reason, a malformed line or an unknown word makes the gate exit 2. Entries
+# apply to files only, never to commit messages; a single line is better
+# served by the inline marker `spelling: allow`.
+#
+# Adding an exception is a pull request to this repository and a new tag; a
+# consumer picks it up by bumping the tag it pins.
+
+# WIRE: scan.cancelled WebSocket message type (server emits; discovery panel + e2e consume)
+bilbospocketses/ws-scrcpy-web src/common/ScanMessage.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/network/NetworkScanner.ts cancelled
+bilbospocketses/ws-scrcpy-web src/app/client/NetworkDiscoveryPanel.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/__tests__/networkScanner.test.ts cancelled
+bilbospocketses/ws-scrcpy-web tests/e2e/device/labels.spec.ts cancelled
+
+# DERIVED: scan chip state/methods mirroring scan.cancelled
+bilbospocketses/ws-scrcpy-web src/app/client/ScanProgressChip.ts cancelled
+bilbospocketses/ws-scrcpy-web src/app/client/__tests__/scanProgressChip.test.ts cancelled
+
+# WIRE: embed-request status 'cancelled' and the {cancelled} JSON field (external embedders over HTTP)
+bilbospocketses/ws-scrcpy-web src/server/security/embedRequests.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/security/embedRequests.test.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/api/EmbedRequestApi.ts cancelled
+bilbospocketses/ws-scrcpy-web src/app/client/EmbedRequestModal.ts cancelled
+bilbospocketses/ws-scrcpy-web tests/e2e/embed-consent.spec.ts cancelled
+bilbospocketses/ws-scrcpy-web tests/e2e/embed-trust.spec.ts cancelled
+
+# EXTERNAL: Win32 ERROR_CANCELLED / HRESULT 0x800704C7
+bilbospocketses/ws-scrcpy-web launcher/src/uac_requester.rs cancelled
+bilbospocketses/ws-scrcpy-web launcher/src/windows_app_uninstall.rs cancelled
+bilbospocketses/ws-scrcpy-web src/common/ServiceEvents.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/service/elevatedRunner.ts cancelled
+bilbospocketses/ws-scrcpy-web src/server/__tests__/elevatedRunner.test.ts cancelled
+
+# WIRE + EXTERNAL: TECHNICAL_GUIDE documents scan.cancelled, the embed status and ERROR_CANCELLED
+bilbospocketses/ws-scrcpy-web docs/TECHNICAL_GUIDE.md cancelled
+
+# EXTERNAL: H.265 spec syntax element separate_colour_plane_flag
+bilbospocketses/ws-scrcpy-web src/app/player/h265-utils.ts colour
+
+# EXTERNAL: vendored port of Project Nayuki's QR generator (upstream identifiers/comments)
+bilbospocketses/ws-scrcpy-web src/server/pairing/qr.ts colour
+bilbospocketses/ws-scrcpy-web src/server/pairing/qr.ts coloured
+bilbospocketses/ws-scrcpy-web src/server/pairing/qr.ts centre
+bilbospocketses/ws-scrcpy-web src/server/pairing/qr.ts centred
+
+# DERIVED (internal, renameable later): Rust enum variant TrayAction::Cancelled
+bilbospocketses/ws-scrcpy-web common/src/tray.rs cancelled
+bilbospocketses/ws-scrcpy-web common/src/lib.rs cancelled
+bilbospocketses/ws-scrcpy-web launcher/src/linux_tray.rs cancelled
