@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-10
+
+### Added
+
+- `words.txt`: the British spellings of materialize, materializes, materialized, materializing,
+  materialization and materializations; 458 pairs in all. A commit message using one passed the gate.
+
 ## [1.0.2] - 2026-10-09
 
 ### Added

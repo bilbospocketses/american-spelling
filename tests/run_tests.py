@@ -831,7 +831,7 @@ def test_repo_option():
 def test_cli_basics():
     code, out = run_cli(None, "--version")
     check("--version prints the version and exits 0",
-          code == 0 and out.strip() == "american-spelling 1.0.2", out)
+          code == 0 and out.strip() == "american-spelling 1.0.3", out)
     code, out = run_cli(None, "--no-such-flag")
     check("an unknown flag is exit 2", code == 2, out)
     code, out = run_cli(None, "--help")

@@ -10,7 +10,7 @@ spelling instead of American spelling.
 - **Stdlib-only Python 3**, one script, no install step. It needs `git` on the `PATH`.
 - **An explicit word list, never suffix rules.** A rule such as "-ise is British" would flag
   promise, exercise, otherwise and surprise; "-our" would flag four, hour and your. The gate
-  instead looks every word up in [`words.txt`](words.txt), which lists 452 British spellings
+  instead looks every word up in [`words.txt`](words.txt), which lists 458 British spellings
   and the American spelling of each, with every inflection written out.
 - **Words inside identifiers are found.** A line is cut into letter runs (digits, `_`, `-` and
   punctuation separate them), and each run is cut again at camelCase boundaries, so
@@ -123,7 +123,7 @@ python check-american-spelling.py [--repo PATH] [--base REF] [--repo-slug OWNER/
 | `--private-allow PATH` | `$AMERICAN_SPELLING_PRIVATE_ALLOW`, else none | The private allow file. |
 | `--words PATH` | `words.txt` beside the script | The word list. |
 | `--all` | off | Scan every tracked text file. Report only; always exits 0. |
-| `--version` | | Print `american-spelling 1.0.2` and exit. |
+| `--version` | | Print `american-spelling 1.0.3` and exit. |
 
 `--allow-file PATH` replaces the bundled `allow.txt`. It exists for the test suite only.
 
@@ -151,7 +151,7 @@ Replace `<commit-sha>` below with the full commit SHA the tag points at. A file 
 the SHA of the commit it is part of, so this one prints it:
 
 ```
-git ls-remote https://github.com/bilbospocketses/american-spelling.git 'refs/tags/v1.0.2^{}'
+git ls-remote https://github.com/bilbospocketses/american-spelling.git 'refs/tags/v1.0.3^{}'
 ```
 
 The base branch comes from the repository, so the snippet works whether your default branch
@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: bilbospocketses/american-spelling
-          ref: <commit-sha>  # v1.0.2
+          ref: <commit-sha>  # v1.0.3
           path: .american-spelling
           persist-credentials: false
 
@@ -226,7 +226,7 @@ verbatim quote, not for clearing old history.
 ## Use it anywhere else
 
 ```
-git clone --branch v1.0.2 https://github.com/bilbospocketses/american-spelling.git
+git clone --branch v1.0.3 https://github.com/bilbospocketses/american-spelling.git
 git -C <your-repo> fetch origin main          # no --depth: the gate needs full history
 python american-spelling/check-american-spelling.py --repo <your-repo> --base origin/main
 ```
