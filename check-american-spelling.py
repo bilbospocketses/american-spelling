@@ -87,7 +87,7 @@ import subprocess
 import sys
 from collections import Counter
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_WORDS = os.path.join(HERE, "words.txt")

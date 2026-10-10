@@ -183,6 +183,12 @@ maximisation maximization
 maximisations maximizations
 maximiser maximizer
 maximisers maximizers
+materialise materialize
+materialises materializes
+materialised materialized
+materialising materializing
+materialisation materialization
+materialisations materializations
 utilise utilize
 utilises utilizes
 utilised utilized
