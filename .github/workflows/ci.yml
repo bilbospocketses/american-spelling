@@ -9,6 +9,12 @@
 #
 # All actions are pinned to commit SHAs (the repository enforces sha_pinning_required),
 # with precise version comments so Dependabot can track them.
+#
+# No job has a time limit: a slow runner makes a step slow, not wrong. Each step that runs a
+# command runs under .github/scripts/stall-watch.sh (stall-watch.ps1 on Windows), which stops it
+# only when, for 20 minutes, it has printed no line and shown no other sign of work, prints a hang
+# record when it does, and reports the step's duration as a notice. Both scripts are copies of
+# bilbospocketses/streamflex's (PR #64, 64defdd), where the rule and its measurements are written up.
 
 name: CI
 
@@ -29,7 +35,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,11 +45,16 @@ jobs:
           python-version: '3.x'
 
       - name: Run the suite
-        run: python tests/run_tests.py
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/stall-watch.sh --name "Run the suite" -- python tests/run_tests.py
+
+      - name: Run the suite
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -File .github/scripts/stall-watch.ps1 "Run the suite" python tests/run_tests.py
 
   spelling:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,7 +62,7 @@ jobs:
           persist-credentials: false
 
       - name: Fetch the base branch
-        run: git fetch --no-tags origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+        run: bash .github/scripts/stall-watch.sh --name "git fetch" -- git fetch --no-tags origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
         env:
           BASE: ${{ github.base_ref || 'main' }}
 
@@ -62,6 +72,7 @@ jobs:
 
       - name: Check American spelling
         run: >-
+          bash .github/scripts/stall-watch.sh --name "Check American spelling" --
           python check-american-spelling.py
           --repo .
           --base "origin/${BASE}"
@@ -72,7 +83,6 @@ jobs:
 
   allow-public:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,7 +93,7 @@ jobs:
           python-version: '3.x'
 
       - name: Every repository named in allow.txt is public
-        run: python check-allow-public.py
+        run: bash .github/scripts/stall-watch.sh --name "allow-public" -- python check-allow-public.py
 
   build-and-test:
     needs: [tests, spelling, allow-public]
