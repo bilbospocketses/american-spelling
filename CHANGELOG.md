@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI no longer stops a job for taking long. The `timeout-minutes` limits (20, 10 and 5) are gone;
+  each step runs under a watchdog that stops it only when, for 20 minutes, it has printed no line
+  and shown no other sign of work, and reports its duration as a notice. The watchdog scripts are
+  copies of `bilbospocketses/streamflex`'s. Nothing in the gate itself changed.
+
 ## [1.0.3] - 2026-10-10
 
 ### Added
